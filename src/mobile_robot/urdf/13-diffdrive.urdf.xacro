@@ -42,8 +42,32 @@
                 <box size="${robot_length} ${robot_width} ${robot_height}"/>
             </geometry>
         </collision>
-        <xacro:default_inertial mass="10"/>
+        <!-- <xacro:default_inertial mass="10"/> -->
     </link>
+
+    <link name="dummy_base_link">
+        <!-- <visual>
+            <geometry>
+                <origin xyz="0 0 0" rpy="0 0 0"/>
+                <box size="${robot_length} ${robot_width} ${robot_height}"/>
+            </geometry>
+            <material name="blue"/>
+        </visual>
+        <collision>
+            <geometry>
+                <origin xyz="0 0 0" rpy="0 0 0"/>
+                <box size="${robot_length} ${robot_width} ${robot_height}"/>
+            </geometry>
+        </collision> -->
+        <xacro:default_inertial mass="20"/>
+    </link>
+
+    <joint name="dummy_joint" type="fixed">
+        <parent link="base_link"/>
+        <child link="dummy_base_link"/>
+        <origin xyz="0 0 0 " rpy="0 0 0"/>
+    </joint>
+
 
     <xacro:macro name="wheel" params="prefix suffix x_reflect y_reflect">
 
@@ -89,7 +113,7 @@
                <mechanicalReduction>1</mechanicalReduction>
            </actuator>
            <joint name="${prefix}_${suffix}_wheel_joint">
-               <hardwareInterface>VelocityJointInterface</hardwareInterface>
+               <hardwareInterface>hardware_interface/VelocityJointInterface</hardwareInterface>
            </joint>
        </transmission>
     </xacro:macro>
