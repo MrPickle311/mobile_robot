@@ -30,10 +30,12 @@ linear:
     has_velocity_limits    : true
     max_velocity           : 10.0   # m/s
     has_acceleration_limits: true
-    max_acceleration       : 1.0   # m/s^2
+    max_acceleration       : 5.0   # m/s^2
+    # has_jerk_limits        : true
+    # max_jerk               : 0.4
 angular:
   z:
     has_velocity_limits    : true
     max_velocity           : 10.0   # rad/s
     has_acceleration_limits: true
-    max_acceleration       : 6.0   # rad/s^2
+    max_acceleration       : 1.0   # rad/s^2
