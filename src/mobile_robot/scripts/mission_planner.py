@@ -1,3 +1,4 @@
+from symbol import return_stmt
 from numpy import float32
 import rospy
 import math
@@ -77,7 +78,7 @@ class MobileRobotPositionKeeper:
 class MovementExecutor(MobileRobotPositionKeeper):
     _feedback = MovementFeedback()
     _result = MovementResult()
-    CHANGES_COUNT = 5  # gentleness
+    CHANGES_COUNT = 10  # gentleness
     K1 = 0.1
     K2 = 0.2
     K3 = 0.8
@@ -150,10 +151,20 @@ class MovementExecutor(MobileRobotPositionKeeper):
         d_dist = self.get_post_reduce_distance(
             movement_data) / self.CHANGES_COUNT
         rospy.loginfo(
-            f'Reducing linear vel with: reduce_distance {reduce_distance} d_dist {d_dist}, v_max: {v_max}')
+            f'Reducing linear vel with: reduce_distance {reduce_distance} d_dist {d_dist}, v_max: {v_max}, last_stop: {reduce_distance+d_dist*self.CHANGES_COUNT}')
 
-        for change_step in range(self.CHANGES_COUNT):
-            progress = (change_step + 1)/self.CHANGES_COUNT
+        # 1. 1-szy endstop musi byc rowny reduce_distance
+        # 2. ostatni endstop musi byc rowny 10.***
+        # 3. najpierw czekamy, a potem zmieniamy predkosc tak, by na koncu dac v=0.0
+
+        for change_step in range(self.CHANGES_COUNT + 1):
+            def get_next_endstop():
+                return reduce_distance + d_dist*(change_step)
+
+            while not math.isclose(self.get_traveled_distance(movement_data), get_next_endstop(), abs_tol=movement_data.accuracy):
+                ...
+
+            progress = change_step/self.CHANGES_COUNT
             vel_msg = Twist()
             vel_msg.angular = Vector3()
             vel_msg.linear.x = (1 - progress) * v_max
@@ -162,14 +173,6 @@ class MovementExecutor(MobileRobotPositionKeeper):
             rospy.loginfo(
                 f'Changing linear velocity change_step {change_step}, linear.x: {vel_msg.linear.x}')
             self.cmd_vel_pub.publish(vel_msg)
-
-            def get_next_endstop():
-                # rospy.loginfo(
-                #     f'next endstop {reduce_distance + d_dist*progress}')
-                return reduce_distance + d_dist*(change_step + 1)
-
-            while self.get_traveled_distance(movement_data) < get_next_endstop():
-                ...
 
         self.stop_robot()
 
@@ -352,7 +355,7 @@ if __name__ == '__main__':
 
     point1 = Point()
     point1.y = 0
-    point1.x = 10
+    point1.x = 2
 
     # point2 = Point()
     # point2.x = 10
