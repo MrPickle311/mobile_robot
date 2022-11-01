@@ -1,0 +1,10 @@
+#goal definition
+float32 accuracy
+float32 distance
+float32 x
+float32 y
+---
+#result definition
+---
+#feedback
+float32 progress

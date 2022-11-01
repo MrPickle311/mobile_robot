@@ -1,0 +1,7 @@
+#goal definition
+geometry_msgs/Point[] points
+---
+#result definition
+---
+#feedback
+geometry_msgs/Point[] point_achieved

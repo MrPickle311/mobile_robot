@@ -1,0 +1,13 @@
+#goal definition
+int8 direction
+float32 accuracy
+float32 angle
+geometry_msgs/Point desired_point
+
+int8 LEFT=1
+int8 RIGHT=-1
+---
+#result definition
+---
+#feedback
+float32 progress
