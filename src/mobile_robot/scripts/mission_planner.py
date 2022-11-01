@@ -153,10 +153,6 @@ class MovementExecutor(MobileRobotPositionKeeper):
         rospy.loginfo(
             f'Reducing linear vel with: reduce_distance {reduce_distance} d_dist {d_dist}, v_max: {v_max}, last_stop: {reduce_distance+d_dist*self.CHANGES_COUNT}')
 
-        # 1. 1-szy endstop musi byc rowny reduce_distance
-        # 2. ostatni endstop musi byc rowny 10.***
-        # 3. najpierw czekamy, a potem zmieniamy predkosc tak, by na koncu dac v=0.0
-
         for change_step in range(self.CHANGES_COUNT + 1):
             def get_next_endstop():
                 return reduce_distance + d_dist*(change_step)

@@ -9,7 +9,7 @@ EARTH_RADIUS = 6378.137  # kilometers
 xy_pub = rospy.Publisher('/gps/xy', Vector3, queue_size=1000)
 
 
-def convert_gps_to_xy(gps_data: NavSatFix) -> float:
+def convert_gps_to_xy(gps_data: NavSatFix):
     global EARTH_RADIUS, xy_pub
     φ0 = 0  # where φ0 denotes a latitude close to the center of your map.
     vec = Vector3()
@@ -21,7 +21,7 @@ def convert_gps_to_xy(gps_data: NavSatFix) -> float:
 
 
 rospy.init_node('gps_to_xy_converter')
-rospy.Subscriber('/gps/fix', NavSatFix,
+rospy.Subscriber('/mobile_robot_gps/fix', NavSatFix,
                  convert_gps_to_xy)
 
 rospy.spin()

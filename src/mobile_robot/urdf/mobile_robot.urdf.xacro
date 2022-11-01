@@ -98,8 +98,8 @@
             <updateRate>10.0</updateRate>
             <bodyName>base_link</bodyName>
             <frameId>base_link</frameId>
-            <topicName>gps/fix</topicName>
-            <velocityTopicName>gps/fix_velocity</velocityTopicName>
+            <topicName>mobile_robot_gps/fix</topicName>
+            <velocityTopicName>mobile_robot_gps/fix_velocity</velocityTopicName>
 
             <offset>0 0 0</offset>
             <drift>0 0 0</drift>
@@ -118,7 +118,7 @@
             <updateRate>10.0</updateRate>
             <bodyName>base_link</bodyName>
             <frameId>base_link</frameId>
-            <topicName>mag</topicName>
+            <topicName>mobile_robot_mag</topicName>
             <offset>0 0 0</offset>
             <drift>0 0 0</drift>
             <gaussianNoise>0.05 0.05 0.05</gaussianNoise>
@@ -130,7 +130,7 @@
     <plugin name="imu_plugin" filename="libgazebo_ros_imu.so">
       <alwaysOn>true</alwaysOn>
       <bodyName>base_link</bodyName>
-      <topicName>imu</topicName>
+      <topicName>mobile_robot_imu</topicName>
       <serviceName>imu_service</serviceName>
       <gaussianNoise>0.0</gaussianNoise>
       <updateRate>20.0</updateRate>
