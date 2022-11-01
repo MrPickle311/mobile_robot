@@ -1,8 +1,7 @@
 #goal definition
 float32 accuracy
 float32 distance
-float32 x
-float32 y
+geometry_msgs/Point desired_point
 ---
 #result definition
 ---
