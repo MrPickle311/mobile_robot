@@ -1,5 +1,4 @@
-from symbol import return_stmt
-from numpy import float32
+from abc import ABC, abstractmethod
 import rospy
 import math
 from sensor_msgs.msg import *
@@ -10,7 +9,7 @@ import actionlib
 from mobile_robot.msg import MissionPlanAction, MissionPlanGoal, MissionPlanResult, MissionPlanFeedback
 from mobile_robot.msg import RotationAction, RotationGoal, RotationResult, RotationFeedback
 from mobile_robot.msg import MovementAction, MovementGoal, MovementFeedback, MovementResult
-
+from typing import Union
 
 class PreemptException(Exception):
     ...
@@ -74,8 +73,26 @@ class MobileRobotPositionKeeper:
     def stop_robot(self):
         self.cmd_vel_pub.publish(Twist())
 
+class VelocityExecutor(MobileRobotPositionKeeper, ABC):
+    def move(self, movement_data: Union[MovementGoal,RotationGoal]):
+        self.speed_up(movement_data)
+        self.wait_for_reduction_step(movement_data)
+        self.reduce(movement_data)
+    
+    @abstractmethod
+    def speed_up(self, movement_data: Union[MovementGoal,RotationGoal]) -> None:
+        ...
 
-class MovementExecutor(MobileRobotPositionKeeper):
+    @abstractmethod
+    def wait_for_reduction_step(self, movement_data: Union[MovementGoal,RotationGoal]) -> None:
+        ...
+        
+    @abstractmethod
+    def reduce(self, movement_data: Union[MovementGoal,RotationGoal]) -> None:
+        ...
+    
+
+class MovementExecutor(VelocityExecutor):
     _feedback = MovementFeedback()
     _result = MovementResult()
     CHANGES_COUNT = 10  # gentleness
@@ -89,11 +106,6 @@ class MovementExecutor(MobileRobotPositionKeeper):
         self._as = actionlib.SimpleActionServer(
             self._action_name, MovementAction, execute_cb=self.move, auto_start=False)
         self._as.start()
-
-    def move(self, movement_data: MovementGoal):
-        self.speed_up(movement_data)
-        self.wait_for_reduction_step(movement_data)
-        self.reduce(movement_data)
 
     def get_left_distance(self, dest_point: Point) -> float:
         return self.vector_len(self.get_displacement_vector(dest_point))
@@ -116,12 +128,11 @@ class MovementExecutor(MobileRobotPositionKeeper):
     def speed_up(self, movement_data: MovementGoal):
         v_max = self.get_v_max(movement_data)
         stabilize_distance = self.get_stabilize_distance(movement_data)
-        d_dist = stabilize_distance / self.CHANGES_COUNT
         rospy.loginfo(
-            f'Speeding up linear vel with: v_max: {v_max} stabilize_distance {stabilize_distance} dt: {d_dist}')
+            f'Speeding up linear vel with: v_max: {v_max} stabilize_distance {stabilize_distance}')
 
         for change_step in range(self.CHANGES_COUNT):
-            progress = ((change_step+1)/self.CHANGES_COUNT)
+            progress = (change_step+1)/self.CHANGES_COUNT
             vel_msg = Twist()
             vel_msg.angular = Vector3()
             vel_msg.linear.x = progress * v_max
@@ -155,7 +166,7 @@ class MovementExecutor(MobileRobotPositionKeeper):
 
         for change_step in range(self.CHANGES_COUNT + 1):
             def get_next_endstop():
-                return reduce_distance + d_dist*(change_step)
+                return reduce_distance + (d_dist*change_step)
 
             while not math.isclose(self.get_traveled_distance(movement_data), get_next_endstop(), abs_tol=movement_data.accuracy):
                 ...
@@ -173,11 +184,11 @@ class MovementExecutor(MobileRobotPositionKeeper):
         self.stop_robot()
 
 
-class RotationExecutor(MobileRobotPositionKeeper):
+class RotationExecutor(VelocityExecutor):
     _feedback = RotationFeedback()
     _result = RotationResult()
 
-    CHANGES_COUNT = 5  # gentleness
+    CHANGES_COUNT = 10  # gentleness
     K1 = 0.1
     K2 = 0.2
     K3 = 0.8
@@ -186,65 +197,83 @@ class RotationExecutor(MobileRobotPositionKeeper):
         super().__init__()
         self._action_name = name
         self._as = actionlib.SimpleActionServer(
-            self._action_name, RotationAction, execute_cb=self.rotate, auto_start=False)
+            self._action_name, RotationAction, execute_cb=self.move, auto_start=False)
         self._as.start()
+    
+    def get_omega_max(self,rotation_data: RotationGoal):
+        return self.K1 * rotation_data.angle
+    
+    def get_stabilize_angle(self, rotation_data: RotationGoal):
+        return self.K2 * rotation_data.angle
+    
+    def get_left_angle(self, dest_point: Point) -> float:
+        return math.fabs(self.get_missing_rotation_to_point(dest_point))
+    
+    def get_reduce_angle(self, rotation_data: RotationGoal) -> float:
+        return rotation_data.angle * self.K3
 
-    def rotate(self, rotation_data: RotationGoal):
-        self.speed_up(rotation_data.angle, rotation_data.direction)
-        self.wait_for_reduction_step(rotation_data)
-        self.reduce(rotation_data.angle, rotation_data.direction)
+    def get_traveled_angle(self, rotation_data: RotationGoal) -> float:
+        return rotation_data.angle - self.get_left_angle(rotation_data.desired_point)
 
-    def speed_up(self, angle: float, direction: int):
-        omega_max = self.K1 * angle
-        stabilize_angle = self.K2 * angle
-        dt = stabilize_angle / self.CHANGES_COUNT
+    def get_post_reduce_angle(self, rotation_data: RotationGoal) -> float:
+        return rotation_data.angle - self.get_reduce_angle(rotation_data)
+
+    def speed_up(self, rotation_data: RotationGoal):
+        omega_max = self.get_omega_max(rotation_data)
+        stabilize_angle = self.get_stabilize_angle(rotation_data)
         rospy.loginfo(
-            f'Speeding up angular vel with: omega_max: {omega_max} stabilize_angle {stabilize_angle} dt {dt}')
+            f'Speeding up angular vel with: omega_max: {omega_max} stabilize_angle {stabilize_angle}')
 
         for change_step in range(self.CHANGES_COUNT):
+            progress = (change_step+1)/self.CHANGES_COUNT
             vel_msg = Twist()
             vel_msg.linear = Vector3()
             vel_msg.angular.x = 0
             vel_msg.angular.y = 0
-            vel_msg.angular.z = (change_step/self.CHANGES_COUNT) * omega_max
-            vel_msg.angular.z *= direction
+            vel_msg.angular.z = progress * omega_max
+            vel_msg.angular.z *= rotation_data.direction
             rospy.loginfo(
                 f'Changing angular velocity change_step {change_step}, angular.z: {vel_msg.angular.z} ')
             self.cmd_vel_pub.publish(vel_msg)
-            rospy.sleep(dt)
+
+            while self.get_traveled_angle(rotation_data) < (progress*stabilize_angle):
+                ...
 
     def wait_for_reduction_step(self, rotation_data: RotationGoal):
-        def get_left_angle():
-            result = math.fabs(self.get_missing_rotation_to_point(
-                rotation_data.desired_point))
-            rospy.loginfo(f'Current angle diffrence: {result}')
-            return result
-        reduce_angle = self.K3*rotation_data.angle
+        post_reduce_angle = self.get_post_reduce_angle(rotation_data)
         rospy.loginfo(
-            f'Waiting for reduction step with rotation_data.angle {rotation_data.angle}, heading: {self.heading}, reduce_angle: {reduce_angle}')
+            f'Waiting for reduction step with rotation_data.angle {rotation_data.angle}, heading: {self.heading}, post_reduce_angle: {post_reduce_angle}')
 
-        while not math.isclose(get_left_angle(), reduce_angle, abs_tol=rotation_data.accuracy):
+        while not math.isclose(self.get_left_angle(rotation_data.desired_point), post_reduce_angle , abs_tol=rotation_data.accuracy):
+            rospy.loginfo(
+                f'Current angle left: {self.get_left_angle(rotation_data.desired_point)} robot_heading: {self.heading}')
             rospy.sleep(0.1)
 
-    def reduce(self, angle: float, direction: int):
-        omega_max = self.K1 * angle
-        reduce_angle = self.K3*angle
-        dt = reduce_angle / self.CHANGES_COUNT
+    def reduce(self, rotation_data: RotationGoal):
+        omega_max = self.get_omega_max(rotation_data)
+        reduce_angle = self.get_reduce_angle(rotation_data)
+        d_angle = self.get_post_reduce_angle(rotation_data) / self.CHANGES_COUNT
         rospy.loginfo(
-            f'Reducing angular vel with: reduce_angle: {reduce_angle}, dt: {dt}')
+            f'Reducing angular vel with: reduce_angle: {reduce_angle}, d_angle: {d_angle}')
 
-        for change_step in range(self.CHANGES_COUNT):
+        for change_step in range(self.CHANGES_COUNT + 1):
+            def get_next_endstop():
+                return reduce_angle + (d_angle*change_step)
+
+            while not math.isclose(self.get_traveled_angle(rotation_data), get_next_endstop(), abs_tol=rotation_data.accuracy):
+                ...
+
+            progress = change_step/self.CHANGES_COUNT
             vel_msg = Twist()
             vel_msg.linear = Vector3()
             vel_msg.angular.x = 0
             vel_msg.angular.y = 0
-            vel_msg.angular.z = (
-                1 - change_step/self.CHANGES_COUNT) * omega_max
-            vel_msg.angular.z *= direction
+            vel_msg.angular.z = (1 - progress) * omega_max
+            vel_msg.angular.z *= rotation_data.direction
             rospy.loginfo(
                 f'Changing angular velocity change_step {change_step}, angular.z: {vel_msg.angular.z} ')
             self.cmd_vel_pub.publish(vel_msg)
-            rospy.sleep(dt)
+            # PO OSTATNIM ENDSTOPIE CZEKAMY NA WYNIK OKRESLONY Z ZAŁOŻONĄ DOKŁADNOŚCIĄ
         self.stop_robot()
 
 
@@ -252,7 +281,7 @@ class MissionPlanner(MobileRobotPositionKeeper):
     _feedback = MissionPlanFeedback()
     _result = MissionPlanResult()
     ROT_EPS = 0.06
-    MOV_EPS = 0.1
+    MOV_EPS = 0.02
 
     def __init__(self, name):
         super().__init__()
@@ -270,8 +299,8 @@ class MissionPlanner(MobileRobotPositionKeeper):
 
         for point in mission.points:
             try:
-                # self.rotate_robot(point)
-                self.move_robot(point)
+                self.rotate_robot(point)
+                # self.move_robot(point)
                 # niech punkty mają swoje id
                 self.publish_point_achieved(point)
             except PreemptException as e:
@@ -350,8 +379,8 @@ if __name__ == '__main__':
     mission = MissionPlanGoal()
 
     point1 = Point()
-    point1.y = 0
-    point1.x = 2
+    point1.y = -5
+    point1.x = 0
 
     # point2 = Point()
     # point2.x = 10
