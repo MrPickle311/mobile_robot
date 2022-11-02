@@ -4,12 +4,11 @@
     <xacro:property name="robot_length" value="0.5"/>
     <xacro:property name="robot_width" value="0.5"/>
     <xacro:property name="robot_height" value="0.2"/>
-    <xacro:property name="leglen" value="0.6"/>
-    <xacro:property name="polelen" value="0.2"/>
-    <xacro:property name="bodylen" value="0.6"/>
-    <xacro:property name="baselen" value="0.5"/>
     <xacro:property name="wheeldiam" value="0.15"/>
-    <xacro:property name="pi" value="3.1415"/>
+    <xacro:property name="wheel_len" value="0.05"/>
+    <xacro:property name="pi" value="3.14159265359"/>
+    <xacro:property name="base_mass" value="15"/>
+    <xacro:property name="robot_wheel_mass" value="5"/>
 
     <material name="blue">
         <color rgba="0 0 0.8 1"/>
@@ -26,7 +25,9 @@
     <xacro:macro name="default_inertial" params="mass">
         <inertial>
             <mass value="${mass}"/>
-            <inertia ixx="1.0" ixy="0.0" ixz="0.0" iyy="1.0" iyz="0.0" izz="1.0"/>
+            <inertia ixx="1.0" ixy="0.0" ixz="0.0" 
+                     iyy="1.0" iyz="0.0" 
+                     izz="1.0"/>
         </inertial>
     </xacro:macro>
 
@@ -35,47 +36,65 @@
             <geometry>
                 <box size="${robot_length} ${robot_width} ${robot_height}"/>
             </geometry>
-            <material name="blue"/>
         </visual>
         <collision>
             <geometry>
                 <box size="${robot_length} ${robot_width} ${robot_height}"/>
             </geometry>
         </collision>
-        <xacro:default_inertial mass="20"/>
+        <inertial>
+            <mass value="${base_mass}"/>
+            <origin xyz="0 0 0" rpy=" 0 0 0"/>
+            <!-- https://en.wikipedia.org/wiki/List_of_moments_of_inertia -->
+            <inertia 
+      			ixx="0.3625" ixy="0"           ixz="0"
+      			                  iyy="0.3625" iyz="0"
+      			                                    izz="0.625"
+      		/>
+        </inertial>
     </link>
 
     <xacro:macro name="wheel" params="prefix suffix x_reflect y_reflect">
 
         <link name="${prefix}_${suffix}_wheel">
             <visual>
-                <origin xyz="0 0 0" rpy="${pi/2} 0 0"/>
+                <!-- <origin xyz="0 0 0" rpy="${pi/2} 0 0"/> -->
+                <origin xyz="0 0 0" rpy="0 1.5707 1.5707"/>
                 <geometry>
-                    <cylinder radius="${wheeldiam/2}" length="0.1"/>
+                    <cylinder radius="${wheeldiam/2}" length="${wheel_len}"/>
                 </geometry>
-                <material name="black"/>
             </visual>
             <collision>
-                <origin xyz="0 0 0" rpy="${pi/2} 0 0"/>
+                <!-- <origin xyz="0 0 0" rpy="${pi/2} 0 0"/> -->
+                <origin xyz="0 0 0" rpy="0 1.5707 1.5707"/>
                 <geometry>
-                    <cylinder radius="${wheeldiam/2}" length="0.1"/>
+                    <cylinder radius="${wheeldiam/2}" length="${wheel_len}"/>
                 </geometry>
             </collision>
-            <xacro:default_inertial mass="1"/>
+            <inertial>
+                <mass value="${robot_wheel_mass}"/>
+                <!-- <origin xyz="0 0 0" rpy="${pi/2} 0 0"/> -->
+                <origin xyz="0 0 0" rpy="0 1.5707 1.5707"/>
+                    <inertia
+                        ixx="0.1" ixy="0.0" ixz="0.0"
+                                  iyy="0.1" iyz="0.0"
+                                            izz="0.1"
+                    />
+		    </inertial>
         </link>
 
         <joint name="${prefix}_${suffix}_wheel_joint" type="continuous">
             <axis xyz="0 1 0" rpy="0 0 0"/>
             <parent link="base_link"/>
             <child link="${prefix}_${suffix}_wheel"/>
-            <origin xyz="${baselen*x_reflect/3*1.5} ${0.2*y_reflect} -${wheeldiam/2+.05}" rpy="0 0 0"/>
+            <origin xyz="${0.2*x_reflect} ${0.3*y_reflect} -${wheeldiam/2+.05}" rpy="0 0 0"/>
             <limit effort="10000" velocity="1000"/>
             <dynamics damping="1.0" friction="1.0"/>
         </joint>
 
         <!-- This block connects the wheel joint to an actuator (motor), which informs both
         simulation and visualization of the robot -->
-       <transmission name="${prefix}_${suffix}_wheel_trans">
+       <!-- <transmission name="${prefix}_${suffix}_wheel_trans">
            <type>transmission_interface/SimpleTransmission</type>
            <actuator name="${prefix}_${suffix}_wheel_motor">
                <mechanicalReduction>1</mechanicalReduction>
@@ -84,7 +103,7 @@
            <joint name="${prefix}_${suffix}_wheel_joint">
                <hardwareInterface>hardware_interface/VelocityJointInterface</hardwareInterface>
            </joint>
-       </transmission>
+       </transmission> -->
     </xacro:macro>
 
     <xacro:wheel prefix="left" suffix="front" x_reflect="1" y_reflect="1"/>
@@ -155,6 +174,7 @@
     <!-- <wheelAcceleration> 1  </wheelAcceleration> -->
     <topicName>cmd_vel</topicName>
     <broadcastTF>true</broadcastTF>
+    <odometryTopic>mobile_robot/odom</odometryTopic>
 
     <covariance_x>0.0001</covariance_x>
     <covariance_y>0.0001</covariance_y>

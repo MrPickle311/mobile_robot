@@ -213,7 +213,9 @@ class RotationExecutor(VelocityExecutor):
         return rotation_data.angle * self.K3
 
     def get_traveled_angle(self, rotation_data: RotationGoal) -> float:
-        return rotation_data.angle - self.get_left_angle(rotation_data.desired_point)
+        res = rotation_data.angle - self.get_left_angle(rotation_data.desired_point)
+        print(f'Traveled angle: {res}')
+        return res
 
     def get_post_reduce_angle(self, rotation_data: RotationGoal) -> float:
         return rotation_data.angle - self.get_reduce_angle(rotation_data)
@@ -258,9 +260,12 @@ class RotationExecutor(VelocityExecutor):
 
         for change_step in range(self.CHANGES_COUNT + 1):
             def get_next_endstop():
-                return reduce_angle + (d_angle*change_step)
-
+                res = reduce_angle + (d_angle*change_step)
+                print(f'Endstop angle: {res}')
+                return res
+            
             while not math.isclose(self.get_traveled_angle(rotation_data), get_next_endstop(), abs_tol=rotation_data.accuracy):
+                print(f'Diff {math.degrees(math.fabs(self.get_traveled_angle(rotation_data) - get_next_endstop()))} degrees')
                 ...
 
             progress = change_step/self.CHANGES_COUNT
@@ -280,8 +285,8 @@ class RotationExecutor(VelocityExecutor):
 class MissionPlanner(MobileRobotPositionKeeper):
     _feedback = MissionPlanFeedback()
     _result = MissionPlanResult()
-    ROT_EPS = 0.06
-    MOV_EPS = 0.02
+    ROT_EPS = math.radians(1) # last dopuszczalny 0,054680184
+    MOV_EPS = 0.08 # meters 
 
     def __init__(self, name):
         super().__init__()
@@ -299,8 +304,8 @@ class MissionPlanner(MobileRobotPositionKeeper):
 
         for point in mission.points:
             try:
-                self.rotate_robot(point)
-                # self.move_robot(point)
+                # self.rotate_robot(point)
+                self.move_robot(point)
                 # niech punkty mają swoje id
                 self.publish_point_achieved(point)
             except PreemptException as e:
@@ -379,8 +384,8 @@ if __name__ == '__main__':
     mission = MissionPlanGoal()
 
     point1 = Point()
-    point1.y = -5
-    point1.x = 0
+    point1.y = 0
+    point1.x = 5
 
     # point2 = Point()
     # point2.x = 10
