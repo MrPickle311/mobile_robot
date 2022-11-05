@@ -34,6 +34,7 @@
 <node name="gazebo" pkg="gazebo_ros" type="gazebo" respawn="false" output="screen"/>
 <node name="imu_compass" pkg="mobile_robot" type="imu_compass" respawn="false" output="screen"/>
 <node name="gps_to_xy.py" pkg="mobile_robot" type="gps_to_xy.py" respawn="false" output="screen"/>
+<node name="odom_to_yaw.py" pkg="mobile_robot" type="odom_to_yaw.py" respawn="false" output="screen"/>
 
 <node pkg="robot_localization" type="ekf_localization_node" name="ekf_se_odom" clear_params="true"/>
 

@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 import rospy
-import math
+import math , time
 from sensor_msgs.msg import *
 from nav_msgs.msg import *
 from geometry_msgs.msg import *
@@ -10,10 +10,14 @@ from mobile_robot.msg import MissionPlanAction, MissionPlanGoal, MissionPlanResu
 from mobile_robot.msg import RotationAction, RotationGoal, RotationResult, RotationFeedback
 from mobile_robot.msg import MovementAction, MovementGoal, MovementFeedback, MovementResult
 from typing import Union
+import matplotlib.pyplot as plt
+import numpy
 
 class PreemptException(Exception):
     ...
 
+times = []
+left_ang = []
 
 EARTH_RADIUS = 6378.137  # kilometers
 
@@ -214,7 +218,7 @@ class RotationExecutor(VelocityExecutor):
 
     def get_traveled_angle(self, rotation_data: RotationGoal) -> float:
         res = rotation_data.angle - self.get_left_angle(rotation_data.desired_point)
-        print(f'Traveled angle: {res}')
+        # print(f'Traveled angle: {res}')
         return res
 
     def get_post_reduce_angle(self, rotation_data: RotationGoal) -> float:
@@ -252,6 +256,9 @@ class RotationExecutor(VelocityExecutor):
             rospy.sleep(0.1)
 
     def reduce(self, rotation_data: RotationGoal):
+        reduce_time = time.time()
+        global left_ang
+        global times 
         omega_max = self.get_omega_max(rotation_data)
         reduce_angle = self.get_reduce_angle(rotation_data)
         d_angle = self.get_post_reduce_angle(rotation_data) / self.CHANGES_COUNT
@@ -261,11 +268,13 @@ class RotationExecutor(VelocityExecutor):
         for change_step in range(self.CHANGES_COUNT + 1):
             def get_next_endstop():
                 res = reduce_angle + (d_angle*change_step)
-                print(f'Endstop angle: {res}')
+                # print(f'Endstop angle: {res}')
                 return res
             
             while not math.isclose(self.get_traveled_angle(rotation_data), get_next_endstop(), abs_tol=rotation_data.accuracy):
-                print(f'Diff {math.degrees(math.fabs(self.get_traveled_angle(rotation_data) - get_next_endstop()))} degrees')
+                left_ang.append(rotation_data.angle - self.get_traveled_angle(rotation_data))
+                times.append(time.time() - reduce_time)
+                # print(f'Diff {math.degrees(math.fabs(self.get_traveled_angle(rotation_data) - get_next_endstop()))} degrees')
                 ...
 
             progress = change_step/self.CHANGES_COUNT
@@ -304,8 +313,8 @@ class MissionPlanner(MobileRobotPositionKeeper):
 
         for point in mission.points:
             try:
-                # self.rotate_robot(point)
-                self.move_robot(point)
+                self.rotate_robot(point)
+                # self.move_robot(point)
                 # niech punkty mają swoje id
                 self.publish_point_achieved(point)
             except PreemptException as e:
@@ -317,25 +326,37 @@ class MissionPlanner(MobileRobotPositionKeeper):
         if success:
             self.finish()
 
-    def rotate_robot(self, point: Point):
+    def calculate_rotation_path(self, point: Point):
         v_disp_rot = self.get_absolute_rotation_to_point(point)
 
         # fi_12
+        print(f'Init heading: {self.heading}')
         diff_rot = self.get_rot_diff_from_heading(v_disp_rot)
 
         direction = RotationGoal.LEFT
 
         if -2*math.pi < diff_rot < -1*math.pi:
+            print('Case 1')
+            diff_rot += 2*math.pi
             direction = RotationGoal.LEFT
         elif -1*math.pi < diff_rot < 0:
+            print('Case 2')
             direction = RotationGoal.RIGHT
         elif 0 < diff_rot < math.pi:
+            print('Case 3')
             direction = RotationGoal.LEFT
         elif math.pi < diff_rot < 2 * math.pi:
+            print('Case 4')
+            diff_rot = 2*math.pi - diff_rot
             direction = RotationGoal.RIGHT
-
+        
         rospy.loginfo(
             f'Selected robot rotation v_disp_rot: {v_disp_rot}, diff_rot: {diff_rot}, direction: {direction}')
+
+        return diff_rot, direction
+    
+    def rotate_robot(self, point: Point):
+        diff_rot, direction = self.calculate_rotation_path(point)
 
         goal = RotationGoal()
         goal.accuracy = self.ROT_EPS
@@ -372,6 +393,17 @@ class MissionPlanner(MobileRobotPositionKeeper):
         rospy.loginfo('Mission finished')
         # self._as.set_succeeded(self._result)
 
+def plot():
+    global times
+    global left_ang
+    plt.plot(times,left_ang)
+    sigma = numpy.std(left_ang)
+    plt.grid(True)
+    plt.title('Zależność brakującego kąta od czasu')
+    plt.text(2.5,0.3,r'$\sigma=$' + f'{round(sigma,6)}')
+    plt.ylabel('Brakujący kąt do pożądanej orientacji robota [rad]')
+    plt.xlabel('Czas [s]')
+    plt.show()
 
 if __name__ == '__main__':
     rospy.init_node('mission_planner')
@@ -385,7 +417,7 @@ if __name__ == '__main__':
 
     point1 = Point()
     point1.y = 0
-    point1.x = 5
+    point1.x = -5
 
     # point2 = Point()
     # point2.x = 10
@@ -395,7 +427,9 @@ if __name__ == '__main__':
 
     # mission.points = [point1, point2, point3]
     mission.points = [point1]
-
+    # print(planner_server.calculate_rotation_path(point1))
+    
     planner_server.execute_mission(mission)
+    # plot()
 
     rospy.spin()

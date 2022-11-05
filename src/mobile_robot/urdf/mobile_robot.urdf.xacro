@@ -89,7 +89,7 @@
             <child link="${prefix}_${suffix}_wheel"/>
             <origin xyz="${0.2*x_reflect} ${0.3*y_reflect} -${wheeldiam/2+.05}" rpy="0 0 0"/>
             <limit effort="10000" velocity="1000"/>
-            <dynamics damping="1.0" friction="1.0"/>
+            <dynamics damping="1.0" friction="0.8"/>
         </joint>
 
         <!-- This block connects the wheel joint to an actuator (motor), which informs both
