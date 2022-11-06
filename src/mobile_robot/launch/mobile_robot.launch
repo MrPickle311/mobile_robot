@@ -36,7 +36,6 @@
 <node name="gps_to_xy.py" pkg="mobile_robot" type="gps_to_xy.py" respawn="false" output="screen"/>
 <node name="odom_to_yaw.py" pkg="mobile_robot" type="odom_to_yaw.py" respawn="false" output="screen"/>
 
-<node pkg="robot_localization" type="ekf_localization_node" name="ekf_se_odom" clear_params="true"/>
 
 <arg name= "pos_x" default = "0"/>
 	<arg name= "pos_y" default = "0"/>

@@ -109,13 +109,19 @@ class MovementExecutor(VelocityExecutor):
         self._action_name = name
         self._as = actionlib.SimpleActionServer(
             self._action_name, MovementAction, execute_cb=self.move, auto_start=False)
+        self.previous_point = Point()
         self._as.start()
+    
+    def update_previous_point(self):
+        self.previous_point.x = self.position.x
+        self.previous_point.y = self.position.y
 
     def get_left_distance(self, dest_point: Point) -> float:
         return self.vector_len(self.get_displacement_vector(dest_point))
 
-    def get_traveled_distance(self, movement_data: MovementGoal) -> float:
-        return movement_data.distance - self.get_left_distance(movement_data.desired_point)
+    def get_traveled_distance(self) -> float:
+        # return movement_data.distance - self.get_left_distance(movement_data.desired_point)
+        return self.get_left_distance(self.previous_point)
 
     def get_reduce_distance(self, movement_data: MovementGoal) -> float:
         return movement_data.distance * self.K3
@@ -130,6 +136,7 @@ class MovementExecutor(VelocityExecutor):
         return self.K2 * movement_data.distance
 
     def speed_up(self, movement_data: MovementGoal):
+        self.update_previous_point()
         v_max = self.get_v_max(movement_data)
         stabilize_distance = self.get_stabilize_distance(movement_data)
         rospy.loginfo(
@@ -146,7 +153,7 @@ class MovementExecutor(VelocityExecutor):
                 f'Changing linear velocity change_step {change_step}, linear.x: {vel_msg.linear.x} ')
             self.cmd_vel_pub.publish(vel_msg)
 
-            while self.get_traveled_distance(movement_data) < (progress*stabilize_distance):
+            while self.get_traveled_distance() < (progress*stabilize_distance):
                 ...
 
     def wait_for_reduction_step(self, movement_data: MovementGoal):
@@ -172,7 +179,8 @@ class MovementExecutor(VelocityExecutor):
             def get_next_endstop():
                 return reduce_distance + (d_dist*change_step)
 
-            while not math.isclose(self.get_traveled_distance(movement_data), get_next_endstop(), abs_tol=movement_data.accuracy):
+            while not math.isclose(self.get_traveled_distance(), get_next_endstop(), abs_tol=movement_data.accuracy):
+                # print(f'Diff { get_next_endstop() - self.get_traveled_distance(movement_data) } meters')
                 ...
 
             progress = change_step/self.CHANGES_COUNT
@@ -184,6 +192,10 @@ class MovementExecutor(VelocityExecutor):
             rospy.loginfo(
                 f'Changing linear velocity change_step {change_step}, linear.x: {vel_msg.linear.x}')
             self.cmd_vel_pub.publish(vel_msg)
+        
+        
+        
+        
 
         self.stop_robot()
 
@@ -295,7 +307,7 @@ class MissionPlanner(MobileRobotPositionKeeper):
     _feedback = MissionPlanFeedback()
     _result = MissionPlanResult()
     ROT_EPS = math.radians(1) # last dopuszczalny 0,054680184
-    MOV_EPS = 0.08 # meters 
+    MOV_EPS = 0.4 # meters 
 
     def __init__(self, name):
         super().__init__()
@@ -314,7 +326,7 @@ class MissionPlanner(MobileRobotPositionKeeper):
         for point in mission.points:
             try:
                 self.rotate_robot(point)
-                # self.move_robot(point)
+                self.move_robot(point)
                 # niech punkty mają swoje id
                 self.publish_point_achieved(point)
             except PreemptException as e:
@@ -416,17 +428,25 @@ if __name__ == '__main__':
     mission = MissionPlanGoal()
 
     point1 = Point()
-    point1.y = 0
-    point1.x = -5
+    point1.y = -5
+    point1.x = 5
 
-    # point2 = Point()
-    # point2.x = 10
-    # point2.y = 5
+    point2 = Point()
+    point2.x = 5
+    point2.y = 5
 
-    # point3 = Point()
+    point3 = Point()
+    point3.x = -5
+    point3.y = -5
 
-    # mission.points = [point1, point2, point3]
-    mission.points = [point1]
+    point4 = Point()
+    point4.x = -5
+    point4.y = 5
+
+    point5 = Point()
+
+    mission.points = [point1, point2, point3, point4, point5]
+    # mission.points = [point1]
     # print(planner_server.calculate_rotation_path(point1))
     
     planner_server.execute_mission(mission)
