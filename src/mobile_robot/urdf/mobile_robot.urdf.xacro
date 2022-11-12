@@ -1,6 +1,9 @@
 <?xml version="1.0"?>
 <robot name="roscontrol" xmlns:xacro="http://ros.org/wiki/xacro">
 
+    <xacro:property name="yaml_file" value="$(find mobile_robot)/config/paramlist.yaml" />
+    <xacro:property name="base_latt" value="${load_yaml(yaml_file)['base_latt']}"/>
+    <xacro:property name="base_long" value="${load_yaml(yaml_file)['base_long']}"/>
     <xacro:property name="robot_length" value="0.5"/>
     <xacro:property name="robot_width" value="0.5"/>
     <xacro:property name="robot_height" value="0.2"/>
@@ -127,8 +130,8 @@
             <velocityOffset>0 0 0</velocityOffset>
             <velocityGaussianNoise>0.05 0.05 0.05</velocityGaussianNoise>
 
-            <referenceLatitude>0.0</referenceLatitude>
-            <referenceLongitude>0.0</referenceLongitude>
+            <referenceLatitude>${base_latt}</referenceLatitude>
+            <referenceLongitude>${base_long}</referenceLongitude>
         </plugin>
     </gazebo>
 

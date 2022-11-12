@@ -23,6 +23,9 @@
   <rosparam command="load"
             file="$(find mobile_robot)/config/diffdrive.yaml"
             ns="mobile_robot_diff_drive_controller" />
+  <rosparam command="load"
+            file="$(find mobile_robot)/config/paramlist.yaml"
+            ns="mobile_robot_diff_drive_controller" />
 
 <param name="robot_description" command="$(find xacro)/xacro --inorder '$(find mobile_robot)/urdf/mobile_robot.urdf.xacro'" />
 

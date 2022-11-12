@@ -44,5 +44,8 @@ install(DIRECTORY config launch urdf
 catkin_install_python(PROGRAMS
         scripts/gps_to_xy.py
         scripts/mission_planner.py
+        scripts/odom_to_yaw.py
+        scripts/moving_average_heading_filter.py
+        scripts/sg_heading_filter.py
         DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
         )
