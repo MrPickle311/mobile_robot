@@ -1,7 +1,7 @@
 #goal definition
 float32 accuracy
 float32 distance
-geometry_msgs/Point desired_point
+mobile_robot/PointTravel desired_point
 ---
 #result definition
 ---

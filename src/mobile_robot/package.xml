@@ -28,6 +28,7 @@
   <depend>robot_state_publisher</depend>
   <depend>rqt_robot_steering</depend>
   <depend>rviz</depend>
+  <depend>sensor_msgs</depend>
   <depend>urdf_tutorial</depend>
   <depend>xacro</depend>
 

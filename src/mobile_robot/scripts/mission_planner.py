@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 import rospy
-import math , time, os
+import math , time
 from sensor_msgs.msg import *
 from nav_msgs.msg import *
 from geometry_msgs.msg import *
@@ -10,17 +10,12 @@ from mobile_robot.msg import MissionPlanAction, MissionPlanGoal, MissionPlanResu
 from mobile_robot.msg import RotationAction, RotationGoal, RotationResult, RotationFeedback
 from mobile_robot.msg import MovementAction, MovementGoal, MovementFeedback, MovementResult
 from typing import Union
-import matplotlib.pyplot as plt
-import numpy
 import collections
-from typing import Tuple
 from calc.gps_to_xy import *
+from mobile_robot.msg import *
 
 class PreemptException(Exception):
     ...
-
-times = []
-left_ang = []
 
 EARTH_RADIUS = 6378.137  # kilometers
 
@@ -32,16 +27,10 @@ class MobileRobotPositionKeeper:
         rospy.Subscriber('/gps/xy', Vector3, self.update_robot_xy)
         rospy.Subscriber('imu/compass_heading', Float32, self.update_heading)
         self.cmd_vel_pub = rospy.Publisher('/cmd_vel', Twist, queue_size=1000)
-        self.deq = collections.deque(maxlen=100)
-
-        for _ in range(100):
-            self.deq.append(0.7)
-        # plt.ion()
 
     @staticmethod
     def get_distance_between_points(gps_point_1: NavSatFix, gps_point_2: NavSatFix) -> float:
         global EARTH_RADIUS
-
         d_latt = math.radians(gps_point_1.latitude - gps_point_2.latitude)
         d_long = math.radians(gps_point_1.longitude - gps_point_2.longitude)
         a = math.sin(d_latt / 2) ** 2 + \
@@ -107,7 +96,7 @@ class VelocityExecutor(MobileRobotPositionKeeper, ABC):
 class MovementExecutor(VelocityExecutor):
     _feedback = MovementFeedback()
     _result = MovementResult()
-    CHANGES_COUNT = 10  # gentleness
+    CHANGES_COUNT = 10 
     K1 = 0.1
     K2 = 0.2
     K3 = 0.8
@@ -142,7 +131,14 @@ class MovementExecutor(VelocityExecutor):
     def get_stabilize_distance(self, movement_data: MovementGoal) -> float:
         return self.K2 * movement_data.distance
 
+    def update_coeficcients(self,movement_data: MovementGoal):
+        self.K1 = movement_data.desired_point.K_1
+        self.K2 = movement_data.desired_point.K_2
+        self.K3 = movement_data.desired_point.K_3
+        self.CHANGES_COUNT = movement_data.desired_point.gentleness        
+
     def speed_up(self, movement_data: MovementGoal):
+        self.update_coeficcients(movement_data)
         self.update_previous_point()
         v_max = self.get_v_max(movement_data)
         stabilize_distance = self.get_stabilize_distance(movement_data)
@@ -190,9 +186,6 @@ class MovementExecutor(VelocityExecutor):
                 return reduce_distance + (d_dist*change_step)
 
             while not math.isclose(self.get_traveled_distance(), get_next_endstop(), abs_tol=movement_data.accuracy):
-                left_ang.append(movement_data.distance - self.get_traveled_distance())
-                times.append(time.time() - reduce_time)
-                # print(f'Diff { get_next_endstop() - self.get_traveled_distance(movement_data) } meters')
                 ...
 
             progress = change_step/self.CHANGES_COUNT
@@ -211,7 +204,7 @@ class RotationExecutor(VelocityExecutor):
     _feedback = RotationFeedback()
     _result = RotationResult()
 
-    CHANGES_COUNT = 10  # gentleness
+    CHANGES_COUNT = 10 
     K1 = 0.1
     K2 = 0.2
     K3 = 0.8
@@ -237,13 +230,19 @@ class RotationExecutor(VelocityExecutor):
 
     def get_traveled_angle(self, rotation_data: RotationGoal) -> float:
         res = rotation_data.angle - self.get_left_angle(rotation_data.desired_point)
-        # print(f'Traveled angle: {res}')
         return res
 
     def get_post_reduce_angle(self, rotation_data: RotationGoal) -> float:
         return rotation_data.angle - self.get_reduce_angle(rotation_data)
 
+    def update_coeficcients(self,rotation_data: RotationGoal):
+        self.K1 = rotation_data.desired_point.K_1
+        self.K2 = rotation_data.desired_point.K_2
+        self.K3 = rotation_data.desired_point.K_3
+        self.CHANGES_COUNT = rotation_data.desired_point.gentleness        
+
     def speed_up(self, rotation_data: RotationGoal):
+        self.update_coeficcients(rotation_data)
         omega_max = self.get_omega_max(rotation_data)
         stabilize_angle = self.get_stabilize_angle(rotation_data)
         rospy.loginfo(
@@ -284,11 +283,9 @@ class RotationExecutor(VelocityExecutor):
         for change_step in range(self.CHANGES_COUNT + 1):
             def get_next_endstop():
                 res = reduce_angle + (d_angle*change_step)
-                # print(f'Endstop angle: {res}')
                 return res
             
             while not math.isclose(self.get_traveled_angle(rotation_data), get_next_endstop(), abs_tol=rotation_data.accuracy):
-                # print(f'Diff {math.degrees(math.fabs(self.get_traveled_angle(rotation_data) - get_next_endstop()))} degrees')
                 ...
 
             progress = change_step/self.CHANGES_COUNT
@@ -301,21 +298,17 @@ class RotationExecutor(VelocityExecutor):
             rospy.loginfo(
                 f'Changing angular velocity change_step {change_step}, angular.z: {vel_msg.angular.z} ')
             self.cmd_vel_pub.publish(vel_msg)
-            # PO OSTATNIM ENDSTOPIE CZEKAMY NA WYNIK OKRESLONY Z ZAŁOŻONĄ DOKŁADNOŚCIĄ
         self.stop_robot()
 
 
 class MissionPlanner(MobileRobotPositionKeeper):
     _feedback = MissionPlanFeedback()
     _result = MissionPlanResult()
-    ROT_EPS = math.radians(1) # last dopuszczalny 0,054680184
-    MOV_EPS = 0.3 # meters 
 
-    def __init__(self, name):
+    def __init__(self):
         super().__init__()
-        self._action_name = name
         self._as = actionlib.SimpleActionServer(
-            self._action_name, MissionPlanAction, execute_cb=self.execute_mission, auto_start=False)
+            '/mission_plan', MissionPlanAction, execute_cb=self.execute_mission, auto_start=False)
         self.rotation_client = actionlib.SimpleActionClient(
             '/rotation_process', RotationAction)
         self.movement_client = actionlib.SimpleActionClient(
@@ -329,7 +322,6 @@ class MissionPlanner(MobileRobotPositionKeeper):
             try:
                 self.rotate_robot(point)
                 self.move_robot(point)
-                # niech punkty mają swoje id
                 self.publish_point_achieved(point)
             except PreemptException as e:
                 rospy.loginfo('Preempted mission planner')
@@ -343,7 +335,6 @@ class MissionPlanner(MobileRobotPositionKeeper):
     def calculate_rotation_path(self, point: Point):
         v_disp_rot = self.get_absolute_rotation_to_point(point)
 
-        # fi_12
         print(f'Init heading: {self.heading}')
         diff_rot = self.get_rot_diff_from_heading(v_disp_rot)
 
@@ -369,11 +360,19 @@ class MissionPlanner(MobileRobotPositionKeeper):
 
         return diff_rot, direction
     
-    def rotate_robot(self, point: Point):
-        diff_rot, direction = self.calculate_rotation_path(point)
+    def convert_gps_to_point(self, point: PointTravel) -> Point:
+        xy_vec = calculate_relative_to_xy(point.desired_point)
+        xy_point = Point()
+        xy_point.x = xy_vec.x
+        xy_point.y = xy_vec.y
+        return xy_point
+    
+    def rotate_robot(self, point: PointTravel):
+        xy_point = self.convert_gps_to_point(point)
+        diff_rot, direction = self.calculate_rotation_path(xy_point)
 
         goal = RotationGoal()
-        goal.accuracy = self.ROT_EPS
+        goal.accuracy = point.rotation_accuracy
         goal.angle = math.fabs(diff_rot)
         goal.direction = direction
         goal.desired_point = point
@@ -383,111 +382,35 @@ class MissionPlanner(MobileRobotPositionKeeper):
             ...
         self.rotation_client.wait_for_result()
 
-    def move_robot(self, point: Point):
-        v_disp = self.get_displacement_vector(point)
+    def move_robot(self, point: PointTravel):
+        xy_point = self.convert_gps_to_point(point)
+        v_disp = self.get_displacement_vector(xy_point)
 
         goal = MovementGoal()
-        goal.accuracy = self.MOV_EPS
+        goal.accuracy = point.move_accuracy
         goal.distance = self.vector_len(v_disp)
         goal.desired_point = point
 
         rospy.loginfo(
-            f'Moving robot with v_disp(x,y): ({v_disp.x},{v_disp.y}), distance: {goal.distance}, goal(x,y): ({goal.desired_point.x},{goal.desired_point.y})')
+            f'Moving robot with v_disp(x,y): ({v_disp.x},{v_disp.y}), distance: {goal.distance},' 
+            f'goal(x,y): ({xy_point.x},{xy_point.y})')
 
         self.movement_client.send_goal(goal)
         if self._as.is_preempt_requested():
             ...
         self.movement_client.wait_for_result()
 
-    def publish_point_achieved(self, point: Point):
+    def publish_point_achieved(self, point: PointTravel):
         self._as.publish_feedback(self._feedback)
-        ...
 
     def finish(self):
         rospy.loginfo('Mission finished')
-        # self._as.set_succeeded(self._result)
-
-def plot():
-    global times
-    global left_ang
-    plt.plot(times,left_ang)
-    sigma = numpy.std(left_ang)
-    plt.grid(True)
-    plt.title('Zależność brakującego dystansu od czasu')
-    plt.text(2.5,0.3,r'$\sigma=$' + f'{round(sigma,6)}')
-    plt.ylabel('Brakujący dystans do pożądanego położenia robota [m]')
-    plt.xlabel('Czas [s]')
-    plt.show()
-
+        self._as.set_succeeded(self._result)
 
 if __name__ == '__main__':
-    plt.axis([0, 99, 0.5, 1])
     rospy.init_node('mission_planner')
-    planner_server = MissionPlanner('planner')
+    planner_server = MissionPlanner()
     rotation_server = RotationExecutor('/rotation_process')
     movement_server = MovementExecutor('/movement_process')
-    rospy.sleep(1)
     rospy.loginfo('Started')
-
-    mission = MissionPlanGoal()
-
-    # new target
-    # 52.220249, 21.010924
-
-    point1 = Point()
-    point2 = Point()
-    point3 = Point()
-    point4 = Point()
-    point5 = Point()
-
-    os.system('pwd')
-    # point1.y = -5
-    # point1.x = 5
-    
-    nav_pos_1 = NavSatFix()
-    nav_pos_1.latitude = 52.220240
-    nav_pos_1.longitude = 21.010875
-
-    nav_pos_2 = NavSatFix()
-    nav_pos_2.latitude = 52.220390
-    nav_pos_2.longitude = 21.011485
-
-    nav_pos_3 = NavSatFix()
-    nav_pos_3.latitude = 52.220395
-    nav_pos_3.longitude = 21.010866
-
-    vec = calculate_relative_to_xy(nav_pos_1)
-    point1.x = vec.x
-    point1.y = vec.y
-    print(f'x: {point1.x}, y: {point1.y}')
-    vec = calculate_relative_to_xy(nav_pos_2)
-    point2.x = vec.x
-    point2.y = vec.y
-    print(f'x: {point2.x}, y: {point2.y}')
-    vec = calculate_relative_to_xy(nav_pos_3)
-    point3.x = vec.x
-    point3.y = vec.y
-    print(f'x: {point3.x}, y: {point3.y}')
-    
-    # point2.x = 5
-    # point2.y = 5
-
-
-    # point3.x = -5
-    # point3.y = -5
-
-    point4.x = -5
-    point4.y = 5
-
-
-    mission.points = [point1, point2, point3]
-    # mission.points = [point1, point2, point3, point4, point5]
-    # mission.points = [point1]
-    # mission.points = [point4, point3, point2, point1, point5]
-    # print(planner_server.calculate_rotation_path(point1))
-    
-    # plt.show()
-    planner_server.execute_mission(mission)
-    # plot()
-
     rospy.spin()

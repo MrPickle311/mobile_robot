@@ -1,7 +1,7 @@
 #goal definition
-geometry_msgs/Point[] points
+mobile_robot/PointTravel[] points
 ---
 #result definition
 ---
 #feedback
-geometry_msgs/Point[] point_achieved
+mobile_robot/PointTravel point_achieved

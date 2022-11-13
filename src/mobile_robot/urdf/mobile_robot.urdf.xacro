@@ -95,18 +95,6 @@
             <dynamics damping="1.0" friction="0.8"/>
         </joint>
 
-        <!-- This block connects the wheel joint to an actuator (motor), which informs both
-        simulation and visualization of the robot -->
-       <!-- <transmission name="${prefix}_${suffix}_wheel_trans">
-           <type>transmission_interface/SimpleTransmission</type>
-           <actuator name="${prefix}_${suffix}_wheel_motor">
-               <mechanicalReduction>1</mechanicalReduction>
-               <hardwareInterface>hardware_interface/VelocityJointInterface</hardwareInterface>
-           </actuator>
-           <joint name="${prefix}_${suffix}_wheel_joint">
-               <hardwareInterface>hardware_interface/VelocityJointInterface</hardwareInterface>
-           </joint>
-       </transmission> -->
     </xacro:macro>
 
     <xacro:wheel prefix="left" suffix="front" x_reflect="1" y_reflect="1"/>

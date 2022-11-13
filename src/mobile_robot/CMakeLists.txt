@@ -5,6 +5,12 @@ find_package(catkin REQUIRED COMPONENTS actionlib geometry_msgs sensor_msgs std_
 
 catkin_python_setup()
 
+
+add_message_files(
+        FILES
+        PointTravel.msg
+)
+
 add_action_files(
         DIRECTORY action
         FILES
@@ -18,12 +24,12 @@ generate_messages(
         std_msgs
         actionlib_msgs
         geometry_msgs
+        sensor_msgs
 )
-
 catkin_package(
         INCLUDE_DIRS include
         LIBRARIES ${PROJECT_NAME}
-        CATKIN_DEPENDS roscpp actionlib rospy message_generation std_msgs message_runtime
+        CATKIN_DEPENDS roscpp actionlib rospy message_generation std_msgs message_runtime sensor_msgs
 )
 
 include_directories(include
@@ -47,5 +53,6 @@ catkin_install_python(PROGRAMS
         scripts/odom_to_yaw.py
         scripts/moving_average_heading_filter.py
         scripts/sg_heading_filter.py
+        scripts/mission_reader.py
         DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
         )
