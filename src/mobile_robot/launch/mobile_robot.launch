@@ -25,6 +25,7 @@
 <node name="gps_to_xy.py" pkg="mobile_robot" type="gps_to_xy.py" respawn="false" output="screen"/>
 <node name="odom_to_yaw.py" pkg="mobile_robot" type="odom_to_yaw.py" respawn="false" output="screen"/>
 <node name="mission_reader.py" pkg="mobile_robot" type="mission_reader.py" respawn="false" output="screen"/>
+<node name="mission_planner.py" pkg="mobile_robot" type="mission_planner.py" respawn="false" output="screen"/>
 
 
 <arg name= "pos_x" default = "0"/>
