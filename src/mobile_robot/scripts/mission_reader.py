@@ -4,7 +4,7 @@ from mobile_robot.msg import *
 
 class MissionReader:
     def __init__(self):
-        self.sub = rospy.Subscriber('/mobile_robot_gps/mission', String,
+        self.sub = rospy.Subscriber('/mobile_robot/mission', String,
                         self.service_mission_execution)
         self.mission_client = actionlib.SimpleActionClient(
         '/mission_plan', MissionPlanAction)
@@ -28,6 +28,16 @@ class MissionReader:
             point.move_accuracy = float(records[6])
             point.rotation_accuracy = float(records[7])
             plan.points.append(point)
+        
+        for point in plan.points:
+            print(f'point.desired_point.latitude: {point.desired_point.latitude}')
+            print(f'point.desired_point.longitude: {point.desired_point.longitude}')
+            print(f'point.K_1: {point.K_1}')
+            print(f'Point.K_2: {point.K_2}')
+            print(f'Point.K_3: {point.K_3}')
+            print(f'gentleness {point.gentleness}')
+            print(f'move_accuracy {point.move_accuracy}')
+            print(f'rotation_accuracy {point.rotation_accuracy}')
         
         self.mission_client.send_goal(plan)
         

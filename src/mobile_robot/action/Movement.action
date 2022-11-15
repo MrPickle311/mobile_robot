@@ -1,7 +1,11 @@
 #goal definition
 float32 accuracy
 float32 distance
-mobile_robot/PointTravel desired_point
+float32 K_1 # 0.0-1.0
+float32 K_2 # 0.0-1.0
+float32 K_3 # 0.0-1.0
+uint8   gentleness # scale 0-100
+geometry_msgs/Point desired_point
 ---
 #result definition
 ---

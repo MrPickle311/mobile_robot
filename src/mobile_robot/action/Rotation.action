@@ -2,7 +2,11 @@
 int8 direction
 float32 accuracy
 float32 angle
-mobile_robot/PointTravel desired_point
+float32 K_1 # 0.0-1.0
+float32 K_2 # 0.0-1.0
+float32 K_3 # 0.0-1.0
+uint8   gentleness # scale 0-100
+geometry_msgs/Point desired_point
 
 int8 LEFT=1
 int8 RIGHT=-1

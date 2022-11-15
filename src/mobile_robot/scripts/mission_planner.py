@@ -10,7 +10,6 @@ from mobile_robot.msg import MissionPlanAction, MissionPlanGoal, MissionPlanResu
 from mobile_robot.msg import RotationAction, RotationGoal, RotationResult, RotationFeedback
 from mobile_robot.msg import MovementAction, MovementGoal, MovementFeedback, MovementResult
 from typing import Union
-import collections
 from calc.gps_to_xy import *
 from mobile_robot.msg import *
 
@@ -24,7 +23,7 @@ class MobileRobotPositionKeeper:
     def __init__(self):
         self.heading = 0
         self.position = Vector3()
-        rospy.Subscriber('/gps/xy', Vector3, self.update_robot_xy)
+        rospy.Subscriber('/gps/xy', Vector3Stamped, self.update_robot_xy)
         rospy.Subscriber('imu/compass_heading', Float32, self.update_heading)
         self.cmd_vel_pub = rospy.Publisher('/cmd_vel', Twist, queue_size=1000)
 
@@ -44,8 +43,8 @@ class MobileRobotPositionKeeper:
     def vector_len(vector: Vector3) -> float:
         return math.sqrt(math.pow(vector.x, 2) + math.pow(vector.y, 2))
 
-    def update_robot_xy(self, position: Vector3):
-        self.position = position
+    def update_robot_xy(self, position: Vector3Stamped):
+        self.position = position.vector
 
     def update_heading(self, heading: Float32):
         self.heading = heading.data
@@ -132,10 +131,10 @@ class MovementExecutor(VelocityExecutor):
         return self.K2 * movement_data.distance
 
     def update_coeficcients(self,movement_data: MovementGoal):
-        self.K1 = movement_data.desired_point.K_1
-        self.K2 = movement_data.desired_point.K_2
-        self.K3 = movement_data.desired_point.K_3
-        self.CHANGES_COUNT = movement_data.desired_point.gentleness        
+        self.K1 = movement_data.K_1
+        self.K2 = movement_data.K_2
+        self.K3 = movement_data.K_3
+        self.CHANGES_COUNT = movement_data.gentleness        
 
     def speed_up(self, movement_data: MovementGoal):
         self.update_coeficcients(movement_data)
@@ -198,6 +197,7 @@ class MovementExecutor(VelocityExecutor):
                 f'Changing linear velocity change_step {change_step}, linear.x: {vel_msg.linear.x}')
             self.cmd_vel_pub.publish(vel_msg)
         self.stop_robot()
+        self._as.set_succeeded(self._result)
 
 
 class RotationExecutor(VelocityExecutor):
@@ -236,10 +236,10 @@ class RotationExecutor(VelocityExecutor):
         return rotation_data.angle - self.get_reduce_angle(rotation_data)
 
     def update_coeficcients(self,rotation_data: RotationGoal):
-        self.K1 = rotation_data.desired_point.K_1
-        self.K2 = rotation_data.desired_point.K_2
-        self.K3 = rotation_data.desired_point.K_3
-        self.CHANGES_COUNT = rotation_data.desired_point.gentleness        
+        self.K1 = rotation_data.K_1
+        self.K2 = rotation_data.K_2
+        self.K3 = rotation_data.K_3
+        self.CHANGES_COUNT = rotation_data.gentleness        
 
     def speed_up(self, rotation_data: RotationGoal):
         self.update_coeficcients(rotation_data)
@@ -299,6 +299,7 @@ class RotationExecutor(VelocityExecutor):
                 f'Changing angular velocity change_step {change_step}, angular.z: {vel_msg.angular.z} ')
             self.cmd_vel_pub.publish(vel_msg)
         self.stop_robot()
+        self._as.set_succeeded(self._result)
 
 
 class MissionPlanner(MobileRobotPositionKeeper):
@@ -372,10 +373,14 @@ class MissionPlanner(MobileRobotPositionKeeper):
         diff_rot, direction = self.calculate_rotation_path(xy_point)
 
         goal = RotationGoal()
-        goal.accuracy = point.rotation_accuracy
+        goal.accuracy = math.radians(point.rotation_accuracy)
         goal.angle = math.fabs(diff_rot)
         goal.direction = direction
-        goal.desired_point = point
+        goal.desired_point = xy_point
+        goal.K_1 = point.K_1
+        goal.K_2 = point.K_2
+        goal.K_3 = point.K_3
+        goal.gentleness = point.gentleness
 
         self.rotation_client.send_goal(goal)
         if self._as.is_preempt_requested():
@@ -389,7 +394,11 @@ class MissionPlanner(MobileRobotPositionKeeper):
         goal = MovementGoal()
         goal.accuracy = point.move_accuracy
         goal.distance = self.vector_len(v_disp)
-        goal.desired_point = point
+        goal.desired_point = xy_point
+        goal.K_1 = point.K_1
+        goal.K_2 = point.K_2
+        goal.K_3 = point.K_3
+        goal.gentleness = point.gentleness
 
         rospy.loginfo(
             f'Moving robot with v_disp(x,y): ({v_disp.x},{v_disp.y}), distance: {goal.distance},' 
