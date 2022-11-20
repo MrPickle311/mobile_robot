@@ -54,5 +54,6 @@ catkin_install_python(PROGRAMS
         scripts/moving_average_heading_filter.py
         scripts/sg_heading_filter.py
         scripts/mission_reader.py
+        scripts/gps_kalman.py
         DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
         )
