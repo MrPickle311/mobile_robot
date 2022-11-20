@@ -17,8 +17,14 @@ class GPSFilter:
         self.x_estimation_prognose = 0
         self.x_estimation_prognose_uncertainlity = 0.003
         self.curr_x_uncertainlity = 0
+        
+        self.current_y_estimation = 0
+        self.y_estimation_prognose = 0
+        self.y_estimation_prognose_uncertainlity = 0.003
+        self.curr_y_uncertainlity = 0
+        
         self.process_noise = 0.001
-        self.x_measurement_uncertainlity = 0.005 # orignal signal fit
+        self.xy_measurement_uncertainlity = 0.005 # orignal signal fit
     
     def predict_and_update(self, gps_data: Vector3Stamped):
         if not self.is_filter_initialized:
@@ -30,20 +36,30 @@ class GPSFilter:
         msg = Vector3Stamped()
         msg.header = gps_data.header
         msg.vector.x = self.current_x_estimation
+        msg.vector.y = self.current_y_estimation
         self.xy_filtered_pub.publish(msg)
     
     def predict(self):
         self.x_estimation_prognose = self.current_x_estimation
         self.x_estimation_prognose_uncertainlity = self.curr_x_uncertainlity + self.process_noise
+        
+        self.y_estimation_prognose = self.current_y_estimation
+        self.y_estimation_prognose_uncertainlity = self.curr_y_uncertainlity + self.process_noise
     
     def update(self, gps_data: Vector3Stamped):
-        kalman_gain = self.x_estimation_prognose_uncertainlity / (self.x_estimation_prognose_uncertainlity + self.x_measurement_uncertainlity)
-        innovation = gps_data.vector.x - self.x_estimation_prognose
-        self.current_x_estimation = self.x_estimation_prognose + kalman_gain * innovation
-        self.curr_x_uncertainlity = (1 - kalman_gain) * self.x_estimation_prognose_uncertainlity
+        x_kalman_gain = self.x_estimation_prognose_uncertainlity / (self.x_estimation_prognose_uncertainlity + self.xy_measurement_uncertainlity)
+        x_innovation = gps_data.vector.x - self.x_estimation_prognose
+        self.current_x_estimation = self.x_estimation_prognose + x_kalman_gain * x_innovation
+        self.curr_x_uncertainlity = (1 - x_kalman_gain) * self.x_estimation_prognose_uncertainlity
+
+        y_kalman_gain = self.y_estimation_prognose_uncertainlity / (self.y_estimation_prognose_uncertainlity + self.xy_measurement_uncertainlity)
+        y_innovation = gps_data.vector.y - self.y_estimation_prognose
+        self.current_y_estimation = self.y_estimation_prognose + y_kalman_gain * y_innovation
+        self.curr_y_uncertainlity = (1 - y_kalman_gain) * self.y_estimation_prognose_uncertainlity
     
     def initialize_filter(self, data: Vector3Stamped):
         self.current_x_estimation = data.vector.x
+        self.current_y_estimation = data.vector.y
         self.is_filter_initialized = True
         rospy.loginfo('Filter initialized')
 
