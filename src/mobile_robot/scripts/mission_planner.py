@@ -24,7 +24,7 @@ class MobileRobotPositionKeeper:
         self.heading = 0
         self.position = Vector3()
         rospy.Subscriber('/gps/xy', Vector3Stamped, self.update_robot_xy)
-        rospy.Subscriber('imu/compass_heading', Float32, self.update_heading)
+        rospy.Subscriber('compass_heading', Float32, self.update_heading)
         self.cmd_vel_pub = rospy.Publisher('/cmd_vel', Twist, queue_size=1000)
 
     @staticmethod

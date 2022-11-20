@@ -36,11 +36,11 @@ include_directories(include
   ${catkin_INCLUDE_DIRS}
 )
 
-add_executable(imu_compass src/imu_compass.cpp)
-target_link_libraries(imu_compass ${catkin_LIBRARIES})
+add_executable(compass src/compass.cpp)
+target_link_libraries(compass ${catkin_LIBRARIES})
 
 install(
-  TARGETS imu_compass
+  TARGETS compass
   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
