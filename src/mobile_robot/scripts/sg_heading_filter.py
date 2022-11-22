@@ -26,7 +26,7 @@ def filter(heading_data: Float32):
     pub.publish(msg)
 
 
-rospy.init_node(f'maf_filter_{window_size}')
-rospy.Subscriber('/imu/compass_heading', Float32,filter)
+rospy.init_node(f'sg_filter_{window_size}')
+rospy.Subscriber('compass_heading', Float32,filter)
 
 rospy.spin()

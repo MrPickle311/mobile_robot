@@ -217,7 +217,10 @@ class RotationExecutor(VelocityExecutor):
         self._as.start()
     
     def get_omega_max(self,rotation_data: RotationGoal):
-        return self.K1 * rotation_data.angle
+        omega_max = self.K1 * rotation_data.angle
+        if omega_max > 1.0:
+            omega_max = 1.0
+        return omega_max
     
     def get_stabilize_angle(self, rotation_data: RotationGoal):
         return self.K2 * rotation_data.angle

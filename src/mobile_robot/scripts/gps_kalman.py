@@ -25,8 +25,8 @@ class GPSFilter:
         self.R = np.matrix([[0.005, 0],
                             [0, 0.005]])
         self.u = np.matrix([[0]])
-        self.Q = np.array([[0.0001, 0],
-                           [0, 0.0001]])
+        self.Q = np.array([[0.0008, 0],
+                           [0, 0.0008]])
         self.F = np.matrix([[1,0],
                             [0,1]])
         self.G = np.matrix([[0],
