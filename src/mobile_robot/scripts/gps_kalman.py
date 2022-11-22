@@ -5,6 +5,7 @@ from nav_msgs.msg import *
 from geometry_msgs.msg import *
 from typing import Tuple
 from calc.gps_to_xy import *
+import numpy as np
 
 class GPSFilter:
     def __init__(self):
@@ -13,53 +14,57 @@ class GPSFilter:
                     self.predict_and_update)
         self.xy_filtered_pub = rospy.Publisher('/gps/xy_filtered', Vector3Stamped, queue_size=1000)
         
-        self.current_x_estimation = 0
-        self.x_estimation_prognose = 0
-        self.x_estimation_prognose_uncertainlity = 0.003
-        self.curr_x_uncertainlity = 0
-        
-        self.current_y_estimation = 0
-        self.y_estimation_prognose = 0
-        self.y_estimation_prognose_uncertainlity = 0.003
-        self.curr_y_uncertainlity = 0
-        
-        self.process_noise = 0.001
-        self.xy_measurement_uncertainlity = 0.005 # orignal signal fit
-    
+        self.X = np.matrix([[0],
+                            [0]])
+        self.P = np.matrix([[0.0, 0],
+                            [0, 0.0]])
+
+        self.I = np.eye(2)
+        self.H = np.matrix([[1, 0],
+                            [0, 1]])
+        self.R = np.matrix([[0.005, 0],
+                            [0, 0.005]])
+        self.u = np.matrix([[0]])
+        self.Q = np.array([[0.0001, 0],
+                           [0, 0.0001]])
+        self.F = np.matrix([[1,0],
+                            [0,1]])
+        self.G = np.matrix([[0],
+                            [0]])
+            
     def predict_and_update(self, gps_data: Vector3Stamped):
         if not self.is_filter_initialized:
             self.initialize_filter(gps_data)
+            return
+        
+        measurement = np.matrix([[gps_data.vector.x],
+                                 [gps_data.vector.y]])
+        
         
         self.predict()
-        self.update(gps_data)
+        self.update(measurement)
         
         msg = Vector3Stamped()
         msg.header = gps_data.header
-        msg.vector.x = self.current_x_estimation
-        msg.vector.y = self.current_y_estimation
+        msg.vector.x = self.X[0,0]
+        msg.vector.y = self.X[1,0]
+        print(self.X[1,0])
         self.xy_filtered_pub.publish(msg)
     
     def predict(self):
-        self.x_estimation_prognose = self.current_x_estimation
-        self.x_estimation_prognose_uncertainlity = self.curr_x_uncertainlity + self.process_noise
-        
-        self.y_estimation_prognose = self.current_y_estimation
-        self.y_estimation_prognose_uncertainlity = self.curr_y_uncertainlity + self.process_noise
+        self.X = self.F*self.X + self.G*self.u
+        self.P = self.F * self.P * np.transpose(self.F) + self.Q
     
-    def update(self, gps_data: Vector3Stamped):
-        x_kalman_gain = self.x_estimation_prognose_uncertainlity / (self.x_estimation_prognose_uncertainlity + self.xy_measurement_uncertainlity)
-        x_innovation = gps_data.vector.x - self.x_estimation_prognose
-        self.current_x_estimation = self.x_estimation_prognose + x_kalman_gain * x_innovation
-        self.curr_x_uncertainlity = (1 - x_kalman_gain) * self.x_estimation_prognose_uncertainlity
-
-        y_kalman_gain = self.y_estimation_prognose_uncertainlity / (self.y_estimation_prognose_uncertainlity + self.xy_measurement_uncertainlity)
-        y_innovation = gps_data.vector.y - self.y_estimation_prognose
-        self.current_y_estimation = self.y_estimation_prognose + y_kalman_gain * y_innovation
-        self.curr_y_uncertainlity = (1 - y_kalman_gain) * self.y_estimation_prognose_uncertainlity
+    def update(self, measurement):
+        innovation = measurement - self.H*self.X
+        kallman_gain = self.P*np.transpose(self.H)* np.linalg.inv(self.H*self.P*np.transpose(self.H)+ self.R)
+        self.X = self.X + kallman_gain*innovation
+        S = self.I - kallman_gain*self.H
+        self.P = S*self.P*np.transpose(S) + kallman_gain*self.R * np.transpose(kallman_gain)
     
     def initialize_filter(self, data: Vector3Stamped):
-        self.current_x_estimation = data.vector.x
-        self.current_y_estimation = data.vector.y
+        self.X = np.matrix([[data.vector.x],
+                            [data.vector.y]])
         self.is_filter_initialized = True
         rospy.loginfo('Filter initialized')
 
