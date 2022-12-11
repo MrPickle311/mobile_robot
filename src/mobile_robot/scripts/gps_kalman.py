@@ -13,6 +13,10 @@ class GPSFilter:
         self.xy_sub =  rospy.Subscriber('/gps/xy', Vector3Stamped,
                     self.predict_and_update)
         self.xy_filtered_pub = rospy.Publisher('/gps/xy_filtered', Vector3Stamped, queue_size=1000)
+        self.odom_xy_sub = rospy.Subscriber('mobile_robot/odom', Odometry, self.update_odometry)
+
+        self.odometry_measurement_xy = None
+        self.is_odom_updated = False
         
         self.X = np.matrix([[0],
                             [0]])
@@ -31,18 +35,26 @@ class GPSFilter:
                             [0,1]])
         self.G = np.matrix([[0],
                             [0]])
-            
+    
+    def update_odometry(self, msg: Odometry):
+        self.odometry_measurement_xy = np.matrix([[msg.pose.pose.position.x],
+                                     [msg.pose.pose.position.y]])
+        self.is_odom_updated = True
+    
     def predict_and_update(self, gps_data: Vector3Stamped):
         if not self.is_filter_initialized:
             self.initialize_filter(gps_data)
             return
         
+        if not self.is_odom_updated:
+            return
+        
         measurement = np.matrix([[gps_data.vector.x],
                                  [gps_data.vector.y]])
         
-        
         self.predict()
         self.update(measurement)
+        self.update(self.odometry_measurement_xy)
         
         msg = Vector3Stamped()
         msg.header = gps_data.header
@@ -61,6 +73,7 @@ class GPSFilter:
         self.X = self.X + kallman_gain*innovation
         S = self.I - kallman_gain*self.H
         self.P = S*self.P*np.transpose(S) + kallman_gain*self.R * np.transpose(kallman_gain)
+        self.is_odom_updated = False
     
     def initialize_filter(self, data: Vector3Stamped):
         self.X = np.matrix([[data.vector.x],
